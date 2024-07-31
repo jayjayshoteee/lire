@@ -1,0 +1,78 @@
+relationship_timeline/
+│
+├── app.py
+├── templates/
+│   └── index.html
+├── static/
+│   └── uploads/
+├── requirements.txt
+└── photos.db 
+
+Flask==2.0.3
+Flask-SQLAlchemy==2.5.1
+
+from flask import Flask, render_template, request, redirect, url_for
+from flask_sqlalchemy import SQLAlchemy
+import os
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///photos.db'
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+
+db = SQLAlchemy(app)
+
+class Photo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(200), nullable=True)
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        if 'photo' not in request.files:
+            return 'No photo part'
+        
+        file = request.files['photo']
+        if file.filename == '':
+            return 'No selected photo'
+
+        description = request.form.get('description')
+        if file:
+            filename = file.filename
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            new_photo = Photo(filename=filename, description=description)
+            db.session.add(new_photo)
+            db.session.commit()
+            return redirect(url_for('index'))
+
+    photos = Photo.query.all()
+    return render_template('index.html', photos=photos)
+
+if __name__ == '__main__':
+    db.create_all()
+    app.run(debug=True)
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relationship Timeline</title>
+</head>
+<body>
+    <h1>Relationship Timeline</h1>
+    <form action="/" method="post" enctype="multipart/form-data">
+        <input type="file" name="photo" required>
+        <input type="text" name="description" placeholder="Description">
+        <button type="submit">Upload Photo</button>
+    </form>
+    <div>
+        {% for photo in photos %}
+            <div>
+                <img src="{{ url_for('static', filename='uploads/' ~ photo.filename) }}" alt="Photo" style="width:200px;height:200px;">
+                <p>{{ photo.description }}</p>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
